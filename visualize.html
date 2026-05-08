@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>NVIDIA NIM — LLM Speed Benchmark</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap");
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #05060f;
+        --surface: rgba(255, 255, 255, 0.04);
+        --border: rgba(255, 255, 255, 0.08);
+        --green: #76b900;
+        --green-glow: rgba(118, 185, 0, 0.35);
+        --cyan: #00d4ff;
+        --text: #e8eaf0;
+        --muted: #6b7280;
+        --bar-h: 36px;
+        --gap: 10px;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 48px 32px 80px;
+      }
+
+      /* ── particle canvas ── */
+      #particles {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .content {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 960px;
+      }
+
+      /* ── header ── */
+      .header {
+        text-align: center;
+        margin-bottom: 56px;
+      }
+
+      .nvidia-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--green);
+        color: #000;
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 2px;
+        padding: 4px 12px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        font-size: clamp(28px, 5vw, 52px);
+        font-weight: 900;
+        line-height: 1.1;
+        background: linear-gradient(135deg, #fff 30%, var(--green) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 12px;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 300;
+      }
+
+      .subtitle span {
+        color: var(--cyan);
+        font-weight: 600;
+      }
+
+      /* ── metric cards ── */
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 48px;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px 24px;
+        text-align: center;
+        backdrop-filter: blur(12px);
+      }
+
+      .card-val {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--green);
+        line-height: 1;
+        margin-bottom: 6px;
+      }
+
+      .card-label {
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+
+      /* ── chart area ── */
+      .chart-wrap {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 32px;
+        backdrop-filter: blur(12px);
+      }
+
+      .chart-title {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 28px;
+      }
+
+      .bar-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: var(--gap);
+        opacity: 0;
+        transform: translateX(-20px);
+        transition:
+          opacity 0.4s ease,
+          transform 0.4s ease;
+      }
+
+      .bar-row.visible {
+        opacity: 1;
+        transform: translateX(0);
+      }
+
+      .rank {
+        width: 24px;
+        text-align: right;
+        font-size: 11px;
+        color: var(--muted);
+        flex-shrink: 0;
+      }
+
+      .model-name {
+        width: 170px;
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .bar-track {
+        flex: 1;
+        height: var(--bar-h);
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 6px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .bar-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 6px;
+        background: linear-gradient(90deg, var(--green) 0%, #a8e000 100%);
+        box-shadow: 0 0 16px var(--green-glow);
+        transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+        position: relative;
+      }
+
+      .bar-fill.top {
+        background: linear-gradient(90deg, #00d4ff 0%, #76b900 100%);
+        box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+      }
+
+      .bar-fill::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          transparent 60%,
+          rgba(255, 255, 255, 0.15) 100%
+        );
+      }
+
+      .bar-val {
+        width: 90px;
+        flex-shrink: 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        text-align: right;
+      }
+
+      .bar-val .unit {
+        font-size: 10px;
+        color: var(--muted);
+        font-weight: 400;
+      }
+
+      .error-row .bar-val {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .error-row .bar-fill {
+        background: rgba(255, 60, 60, 0.3);
+        box-shadow: none;
+      }
+
+      /* ── axis line ── */
+      .axis {
+        border-top: 1px solid var(--border);
+        margin-top: 24px;
+        padding-top: 8px;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .axis-label {
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 1px;
+      }
+
+      /* ── footer ── */
+      .footer {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .footer span {
+        color: var(--green);
+      }
+
+      /* ── loading state ── */
+      #loading {
+        text-align: center;
+        padding: 80px 0;
+      }
+      #loading p {
+        color: var(--muted);
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      .spinner {
+        width: 36px;
+        height: 36px;
+        border: 3px solid var(--border);
+        border-top-color: var(--green);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="particles"></canvas>
+
+    <div class="content">
+      <div class="header">
+        <div class="nvidia-badge">⬛ NVIDIA NIM</div>
+        <h1>LLM Speed Benchmark</h1>
+        <p class="subtitle">
+          Same prompt · All free endpoints · Ranked by
+          <span>tokens / second</span>
+        </p>
+      </div>
+
+      <div class="cards" id="summary-cards">
+        <div class="card">
+          <div class="card-val" id="card-models">—</div>
+          <div class="card-label">Models Tested</div>
+        </div>
+        <div class="card">
+          <div class="card-val" id="card-fastest">—</div>
+          <div class="card-label">Fastest (tok/s)</div>
+        </div>
+        <div class="card">
+          <div class="card-val" id="card-winner">—</div>
+          <div class="card-label">Winner</div>
+        </div>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-title">Tokens per Second ↑ (higher is better)</div>
+        <div id="chart">
+          <div id="loading">
+            <div class="spinner"></div>
+            <p>Loading results.json …</p>
+          </div>
+        </div>
+        <div class="axis">
+          <span class="axis-label">tokens / second →</span>
+        </div>
+      </div>
+
+      <div class="footer">
+        Prompt:
+        <span
+          >"What is the capital of India? Please answer in one sentence."</span
+        >
+        &nbsp;·&nbsp; API: <span>integrate.api.nvidia.com/v1</span>
+      </div>
+    </div>
+
+    <script>
+      // ── particles ──────────────────────────────────────────────────────────────
+      const canvas = document.getElementById("particles");
+      const ctx = canvas.getContext("2d");
+      let W,
+        H,
+        pts = [];
+
+      function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener("resize", resize);
+
+      for (let i = 0; i < 60; i++) {
+        pts.push({
+          x: Math.random() * 1920,
+          y: Math.random() * 1080,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+          r: Math.random() * 1.5 + 0.5,
+          a: Math.random() * 0.4 + 0.1,
+        });
+      }
+
+      function drawParticles() {
+        ctx.clearRect(0, 0, W, H);
+        pts.forEach((p) => {
+          p.x += p.vx;
+          p.y += p.vy;
+          if (p.x < 0) p.x = W;
+          if (p.x > W) p.x = 0;
+          if (p.y < 0) p.y = H;
+          if (p.y > H) p.y = 0;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(118,185,0,${p.a})`;
+          ctx.fill();
+        });
+        requestAnimationFrame(drawParticles);
+      }
+      drawParticles();
+
+      // ── chart ──────────────────────────────────────────────────────────────────
+      async function loadAndRender() {
+        let data;
+        try {
+          const res = await fetch("results.json");
+          if (!res.ok) throw new Error("results.json not found");
+          data = await res.json();
+        } catch (e) {
+          document.getElementById("loading").innerHTML =
+            `<p style="color:#f87171">⚠ ${e.message}<br>Run benchmark.py first, then open this file.</p>`;
+          return;
+        }
+
+        const ok = data
+          .filter((d) => d.status === "ok")
+          .sort((a, b) => b.tokens_per_second - a.tokens_per_second);
+        const errors = data.filter((d) => d.status !== "ok");
+        const all = [...ok, ...errors];
+        const maxTps = ok.length ? ok[0].tokens_per_second : 1;
+
+        // summary cards
+        document.getElementById("card-models").textContent = ok.length;
+        document.getElementById("card-fastest").textContent = ok.length
+          ? ok[0].tokens_per_second.toFixed(1)
+          : "—";
+        document.getElementById("card-winner").textContent = ok.length
+          ? ok[0].label.split(" ").slice(0, 2).join(" ")
+          : "—";
+
+        // build rows
+        const chart = document.getElementById("chart");
+        chart.innerHTML = "";
+
+        all.forEach((d, i) => {
+          const pct =
+            d.status === "ok" ? (d.tokens_per_second / maxTps) * 100 : 4;
+          const isTop = i === 0;
+          const isError = d.status !== "ok";
+
+          const row = document.createElement("div");
+          row.className = "bar-row" + (isError ? " error-row" : "");
+          row.innerHTML = `
+      <div class="rank">${isError ? "✗" : i + 1}</div>
+      <div class="model-name" title="${d.id}">${d.label}</div>
+      <div class="bar-track">
+        <div class="bar-fill ${isTop ? "top" : ""}" data-pct="${pct}" style="width:0%"></div>
+      </div>
+      <div class="bar-val">
+        ${
+          isError
+            ? `<span style="font-size:10px;color:#6b7280">error</span>`
+            : `${d.tokens_per_second.toFixed(1)} <span class="unit">tok/s</span>`
+        }
+      </div>`;
+          chart.appendChild(row);
+        });
+
+        // staggered animation
+        const rows = chart.querySelectorAll(".bar-row");
+        rows.forEach((row, i) => {
+          setTimeout(() => {
+            row.classList.add("visible");
+            const fill = row.querySelector(".bar-fill");
+            setTimeout(() => {
+              fill.style.width = fill.dataset.pct + "%";
+            }, 100);
+          }, i * 80);
+        });
+      }
+
+      loadAndRender();
+    </script>
+  </body>
+</html>
