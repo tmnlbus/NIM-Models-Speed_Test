@@ -20,7 +20,7 @@ API_KEY = os.getenv("NVIDIA_API_KEY")
 BASE_URL = "https://integrate.api.nvidia.com/v1"
 PROMPT = "What is the capital of India? Please answer in one sentence."
 RESULTS_FILE = args.output
-RATE_LIMIT_WAIT = 12
+RATE_LIMIT_WAIT = 1.5
 REQUEST_TIMEOUT = 60
 
 client = OpenAI(base_url=BASE_URL, api_key=API_KEY, timeout=REQUEST_TIMEOUT)
@@ -61,6 +61,7 @@ def quick_probe(model_id):
         model=model_id,
         messages=[{"role": "user", "content": "Hi"}],
         max_tokens=1,
+        timeout=15,
     )
     return True
 
@@ -79,6 +80,7 @@ def benchmark_model(model_id, label):
             temperature=0.7,
             max_tokens=300,
             stream=True,
+            timeout=60,
         )
 
         full_text = ""
